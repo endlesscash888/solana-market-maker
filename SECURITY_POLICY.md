@@ -1,85 +1,47 @@
-# ✅ Security Policy: Solana Market-Making Bot Deployment
+# ✅ Security Policy: Solana Market-Maker Bot (Pump.fun)
 
-## Purpose
-
-This policy defines the approved sources of software, SDKs, Docker containers, and academic references used in the development and deployment of the Solana-based Pump.fun market-making bot. It enforces security best practices and eliminates the risk of integrating unknown, malicious, or backdoored code.
+This project is built under strict security and source-validation policies to prevent supply chain attacks, wallet compromise, and backdoor integrations.
 
 ---
 
-## 📚 Approved Knowledge & Code Sources
+## 1. 🔐 Source Code Trust Rules
 
-### ✅ SDKs & Repositories (official only)
+Only the following sources are allowed for code imports, architecture references, SDKs, or implementation strategies:
 
-* GitHub Organizations:
+### ✅ Official SDKs:
+- `@pump-fun/pump-sdk`, `@pump-fun/pump-swap-sdk`
+- `@jito-ts/core`, `@helius-labs/sdk`, `@jup-ag/core`
+- `@solana/web3.js`, `@solana/spl-token`
 
-  * `pump-fun`
-  * `jito-labs`
-  * `solana-labs`
-  * `helius-labs`
-  * `jup-ag`
-  * `project-serum`
-  * `metaplex-foundation`
-* NPM Verified Packages:
+### ✅ GitHub Repositories:
+- `Pump.fun`, `Solana Labs`, `Jito Labs`, `Helius Labs`, `Jupiter Aggregator`, `Metaplex`, `Solana Cookbook`
 
-  * `@pump-fun/pump-sdk`
-  * `@jito-ts/core`
-  * `@helius-labs/sdk`
-  * `@jup-ag/core`
-  * `@solana/web3.js`
-* DockerHub Official Images:
+### ✅ Infrastructure & Cloud Providers:
+- Amazon Web Services (AWS), Cloudflare, DigitalOcean
+- Redis Labs, Grafana, Prometheus, Kafka (Apache)
 
-  * `solanalabs`
-  * `redis`
-  * `grafana`
-  * `node`
-  * `prometheus`
-  * `postgres`
-  * `nginx`
-  * `ubuntu`, `debian`
+### ✅ Top Academic Institutions:
+- MIT CSAIL, Stanford, SSE (Stockholm School of Economics)
+- UC Berkeley EECS, Harvard SEAS (CS50, Trading & ML), Cambridge Computer Lab
 
-### ✅ Infrastructure & Cloud Providers
-
-* [Helius Docs & Pricing](https://docs.helius.xyz/)
-* [DigitalOcean Documentation](https://docs.digitalocean.com/)
-* [Redis Cloud Docs](https://redis.com/docs/)
-* [Grafana Labs Documentation](https://grafana.com/docs/)
-* [GitHub Docs](https://docs.github.com)
-* [Docker Docs](https://docs.docker.com)
-* [AWS Documentation](https://docs.aws.amazon.com/)
-* [Jito Labs Docs](https://docs.jito.wtf)
-* [Prometheus Monitoring Docs](https://prometheus.io/docs/)
-
-### ✅ Academic and Scientific References
-
-* [MIT OpenCourseWare](https://ocw.mit.edu/)
-* [Stanford CS & Financial Math](https://cs.stanford.edu/)
-* [Cambridge Mathematical Finance](https://maths.cam.ac.uk/)
-* [Stockholm School of Economics (SSE)](https://www.hhs.se/en/)
-* [Cornell eCommons](https://ecommons.cornell.edu/)
-* [arXiv.org (CS.MA, Q.FIN categories)](https://arxiv.org/)
+### ❌ Forbidden Sources:
+- Unverified GitHub repos (not owned by above organizations)
+- Reddit/Gist/pastebin/unknown blog code snippets
+- StackOverflow with no attribution to official docs
+- AI-generated code with unknown provenance
 
 ---
 
-## ⛔️ Strictly Prohibited Sources
+## 2. 💳 Key Security Practices
 
-* ❌ Random GitHub repositories outside approved organizations
-* ❌ Pastebin, Gist, personal Discord messages
-* ❌ Reddit code snippets or comments
-* ❌ Unknown or GPT-generated repos without manual review
-* ❌ Dev blogs unless officially associated with approved vendors (e.g., `grafana.com/blog`, `dev.to/@helius`)
-
----
-
-## 🎯 Enforcement Goals
-
-* Ensure all production and development dependencies are secure, traceable, and auditable
-* Prevent accidental use of unsafe libraries, forked SDKs, or copied unvetted code
-* Establish a zero-tolerance policy for mixing trusted and untrusted components in the same runtime
-
-All development team members and AI copilots (Claude, Perplexity, Grok) must adhere to this policy throughout all phases of the project lifecycle.
+- Private keys **must not be hardcoded**
+- All signing must occur via **local encrypted keypairs**
+- For critical actions (>1 SOL), **multisig or 2FA** via Telegram bot is required
+- Vaults (e.g., Hashicorp Vault, AWS KMS) are approved for future Phase 2
 
 ---
 
-*Last updated: June 2025*
+## 3. ⚠️ License and Distribution
 
-Maintainer: Sir Michael the Victorious
+- MIT license applies
+- You may fork, contribute, or deploy, but **must preserve this policy**
