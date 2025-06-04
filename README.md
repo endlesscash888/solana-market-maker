@@ -1,4 +1,8 @@
-# Solana Market-Maker Bot (Pump.fun Optimized)
+## 📖 Project Policies
+
+- 🔐 [Security Policy](./SECURITY_POLICY.md)
+- 🛠 [Deployment Guide](./DEPLOYMENT.md)
+
 
 > ⚠️ This repository is part of a private research-grade infrastructure project and may contain incomplete or sensitive logic. Public exposure is temporary and subject to change.
 
