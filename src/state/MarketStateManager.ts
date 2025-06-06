@@ -38,10 +38,10 @@ export class MarketStateManager {
    * @param amount Change in position size
    */
   async updatePosition(tokenAddress: string, amount: number): Promise<void> {
-    const key = \`${this.cachePrefix}\${tokenAddress}\`;
+    const key = `${this.cachePrefix}\${tokenAddress}`;
     await this.redis.hincrbyfloat(key, 'positionSize', amount);
     await this.redis.hset(key, 'lastUpdated', Date.now().toString());
-    console.log(\`📊 Position updated for \${tokenAddress}: \${amount}\`);
+    console.log(`📊 Position updated for \${tokenAddress}: \${amount}`);
   }
 
   /**
@@ -50,10 +50,10 @@ export class MarketStateManager {
    * @param amount Change in liquidity
    */
   async updateLiquidity(tokenAddress: string, amount: number): Promise<void> {
-    const key = \`${this.cachePrefix}\${tokenAddress}\`;
+    const key = `${this.cachePrefix}\${tokenAddress}`;
     await this.redis.hincrbyfloat(key, 'liquidity', amount);
     await this.redis.hset(key, 'lastUpdated', Date.now().toString());
-    console.log(\`📊 Liquidity updated for \${tokenAddress}: \${amount}\`);
+    console.log(`📊 Liquidity updated for \${tokenAddress}: \${amount}`);
   }
 
   /**
@@ -62,10 +62,10 @@ export class MarketStateManager {
    */
   async refreshVolatility(tokenAddress: string): Promise<void> {
     const volatility = await calculateVolatility(tokenAddress, this.connection);
-    const key = \`${this.cachePrefix}\${tokenAddress}\`;
+    const key = `${this.cachePrefix}\${tokenAddress}`;
     await this.redis.hset(key, 'volatility', volatility.toString());
     await this.redis.hset(key, 'lastUpdated', Date.now().toString());
-    console.log(\`📈 Volatility refreshed for \${tokenAddress}: \${volatility}\`);
+    console.log(`📈 Volatility refreshed for \${tokenAddress}: \${volatility}`);
   }
 
   /**
@@ -74,7 +74,7 @@ export class MarketStateManager {
    * @returns MarketState or null if not found
    */
   async getMarketState(tokenAddress: string): Promise<MarketState | null> {
-    const key = \`${this.cachePrefix}\${tokenAddress}\`;
+    const key = `${this.cachePrefix}\${tokenAddress}`;
     const state = await this.redis.hgetall(key);
     if (Object.keys(state).length === 0) return null;
     return {

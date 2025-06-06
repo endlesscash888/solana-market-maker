@@ -2,3 +2,11 @@ node_modules/
 dist/
 .env
 *.log
+
+# Build artifacts
+build_*.txt
+final_*.txt
+temp_*.txt
+
+# Dependencies
+node_modules/
