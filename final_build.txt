@@ -1,0 +1,8 @@
+
+> solana-market-maker@1.0.0 build
+> tsc --project tsconfig.json
+
+src/TradingEngine.ts(118,61): error TS2353: Object literal may only specify known properties, and 'nonce' does not exist in type 'SwapParams'.
+src/TradingEngine.ts(132,10): error TS2339: Property 'multi' does not exist on type 'ChainableCommander'.
+src/index.ts(15,19): error TS2554: Expected 2 arguments, but got 1.
+src/index.ts(147,25): error TS2554: Expected 2 arguments, but got 1.

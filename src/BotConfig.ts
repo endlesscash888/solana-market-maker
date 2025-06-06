@@ -1,214 +1,236 @@
-import { Connection, PublicKey, Keypair } from "@solana/web3.js";
-import { createLogger, format, transports } from "winston";
-import Redis from "ioredis";
-import * as dotenv from "dotenv";
-
-dotenv.config();
+import { Connection, Keypair, PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
+import { AnchorProvider } from "@coral-xyz/anchor";
+import { Redis } from "ioredis";
+import winston from "winston";
 
 export interface BotConfigOptions {
-  pumpApiKey?: string;
+  connection?: Connection;
+  keypair?: Keypair;
+  redis?: Redis;
+  logger?: winston.Logger;
 }
 
 export class BotConfig {
   public readonly connection: Connection;
-  public readonly redis: Redis;
-  public readonly logger: any;
   public readonly keypair: Keypair;
+  public readonly redis: Redis;
+  public readonly logger: winston.Logger;
   public readonly maxTPS: number;
   public readonly maxConcurrency: number;
-  public readonly pumpApiKey?: string;
-  
+  public readonly pumpApiKey: string;
+
   constructor(options: BotConfigOptions = {}) {
-    // Validate required environment variables
-    this.validateEnvironment();
+    this.logger = options.logger || this.setupLogger();
+    this.connection = options.connection || this.setupConnection();
+    this.keypair = options.keypair || this.setupWallet();
+    this.redis = options.redis || this.setupRedis();
     
-    // Initialize Solana connection with Helius if available
-    const rpcUrl = process.env.HELIUS_API_KEY 
-      ? `https://rpc.helius.xyz/?api-key=${process.env.HELIUS_API_KEY}`
-      : process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
-      
-    this.connection = new Connection(rpcUrl, "confirmed");
-    
-    // Initialize Redis with production configuration
-    this.redis = new Redis({
-      host: this.parseRedisHost(),
-      port: this.parseRedisPort(),
-      password: process.env.REDIS_PASSWORD || undefined,
-      db: parseInt(process.env.REDIS_DB || "0"),
-      retryStrategy: (times) => Math.min(times * 50, 2000),
-      maxRetriesPerRequest: 3,
-      lazyConnect: true,
-      enableOfflineQueue: false
-    });
-    
-    // Initialize logger with production settings
-    this.logger = createLogger({
+    // Load configuration from env
+    this.maxTPS = parseInt(process.env.MAX_TPS || "10");
+    this.maxConcurrency = parseInt(process.env.MAX_CONCURRENCY || "5");
+    this.pumpApiKey = process.env.PUMP_API_KEY || "";
+  }
+
+  private setupLogger(): winston.Logger {
+    return winston.createLogger({
       level: process.env.LOG_LEVEL || "info",
-      format: format.combine(
-        format.timestamp(),
-        format.errors({ stack: true }),
-        format.json()
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.errors({ stack: true }),
+        winston.format.json()
       ),
       transports: [
-        new transports.Console({
-          format: format.combine(
-            format.colorize(),
-            format.simple()
+        new winston.transports.Console({
+          format: winston.format.combine(
+            winston.format.colorize(),
+            winston.format.simple()
           )
-        }),
-        new transports.File({ 
-          filename: "logs/error.log", 
-          level: "error",
-          maxsize: 10485760, // 10MB
-          maxFiles: 5
-        }),
-        new transports.File({ 
-          filename: "logs/combined.log",
-          maxsize: 10485760, // 10MB
-          maxFiles: 5
         })
       ]
     });
-    
-    // Redis event handlers for production reliability
-    this.redis.on("error", (err) => {
-      this.logger.error("Redis connection error:", err);
-    });
-    
-    this.redis.on("ready", () => {
-      this.logger.info("Redis connection established");
-    });
-    
-    // Initialize keypair with validation
-    this.keypair = this.initializeKeypair();
-    
-    // Configuration options with validation
-    this.maxTPS = this.validateNumber(process.env.MAX_TPS, 10, 1, 100);
-    this.maxConcurrency = this.validateNumber(process.env.MAX_CONCURRENCY, 2, 1, 10);
-    this.pumpApiKey = options.pumpApiKey || process.env.PUMP_API_KEY;
-    
-    this.logger.info("Bot configuration initialized", {
-      pubkey: this.keypair.publicKey.toString(),
-      rpc: this.connection.rpcEndpoint,
-      maxTPS: this.maxTPS,
-      maxConcurrency: this.maxConcurrency,
-      nodeEnv: process.env.NODE_ENV || "development",
-      hasHeliusKey: !!process.env.HELIUS_API_KEY,
-      hasPumpKey: !!this.pumpApiKey
-    });
   }
-  
-  private validateEnvironment(): void {
-    const required = ["PRIVATE_KEY"];
-    const missing = required.filter(key => !process.env[key] || process.env[key] === `your_${key.toLowerCase()}_here`);
+
+  private setupConnection(): Connection {
+    const rpcUrl = process.env.HELIUS_API_KEY
+      ? `https://rpc.helius.xyz/?api-key=${process.env.HELIUS_API_KEY}`
+      : "https://api.devnet.solana.com";
     
-    if (missing.length > 0) {
-      throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
-    }
-    
-    // Warn about production settings
-    if (process.env.NODE_ENV === "production") {
-      const warnings = [];
-      if (!process.env.HELIUS_API_KEY) warnings.push("HELIUS_API_KEY not set - using free RPC");
-      if (!process.env.REDIS_PASSWORD) warnings.push("REDIS_PASSWORD not set - using local Redis");
-      
-      if (warnings.length > 0) {
-        console.warn("Production warnings:", warnings.join(", "));
-      }
-    }
+    const connection = new Connection(rpcUrl, "confirmed");
+    this.logger.info(`Connected to Solana RPC: ${rpcUrl.includes("helius") ? "Helius (masked)" : "Devnet"}`);
+    return connection;
   }
-  
-  private parseRedisHost(): string {
-    if (!process.env.REDIS_URL) return "localhost";
-    
-    try {
-      const url = new URL(process.env.REDIS_URL);
-      return url.hostname;
-    } catch {
-      // Fallback for simple host:port format
-      return process.env.REDIS_URL.split("://")[1]?.split(":")[0] || "localhost";
-    }
-  }
-  
-  private parseRedisPort(): number {
-    if (!process.env.REDIS_URL) return 6379;
-    
-    try {
-      const url = new URL(process.env.REDIS_URL);
-      return parseInt(url.port) || 6379;
-    } catch {
-      // Fallback for simple host:port format
-      return parseInt(process.env.REDIS_URL.split(":")[2] || "6379");
-    }
-  }
-  
-  private initializeKeypair(): Keypair {
+
+  private setupWallet(): Keypair {
     const privateKey = process.env.PRIVATE_KEY;
     
-    if (!privateKey || privateKey === "your_base58_private_key_here") {
-      this.logger.warn("Using temporary keypair - add PRIVATE_KEY to .env for production");
+    // Production safety check from review
+    if (!privateKey && process.env.NODE_ENV === "production") {
+      this.logger.error("PRIVATE_KEY is required in production mode");
+      throw new Error("Missing PRIVATE_KEY in production");
+    }
+
+    if (!privateKey) {
+      this.logger.warn("Generating temporary keypair for non-production mode");
       return Keypair.generate();
     }
+
+    try {
+      let secretKey: Uint8Array;
+      if (privateKey.includes(",")) {
+        secretKey = new Uint8Array(privateKey.split(",").map(num => parseInt(num.trim())));
+      } else {
+        secretKey = new Uint8Array(Buffer.from(privateKey, "base64"));
+      }
+
+      if (secretKey.length !== 64) {
+        throw new Error("Invalid secret key length - must be 64 bytes");
+      }
+
+      const keypair = Keypair.fromSecretKey(secretKey);
+      this.logger.info("Wallet loaded successfully (public key masked for security)");
+      return keypair;
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error("Failed to parse private key", { error: errorMsg });
+      throw new Error("Invalid private key format");
+    }
+  }
+
+  private setupRedis(): Redis {
+    const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
     
     try {
-      // Try base64 format first
-      return Keypair.fromSecretKey(Buffer.from(privateKey, "base64"));
-    } catch {
-      try {
-        // Try base58 format
-        const bs58 = require("bs58");
-        return Keypair.fromSecretKey(bs58.decode(privateKey));
-      } catch {
-        try {
-          // Try JSON array format
-          return Keypair.fromSecretKey(new Uint8Array(JSON.parse(privateKey)));
-        } catch (error) {
-          this.logger.error("Invalid private key format. Supported: base64, base58, JSON array");
-          this.logger.warn("Using temporary keypair");
-          return Keypair.generate();
-        }
-      }
+      const client = new Redis(redisUrl, {
+        maxRetriesPerRequest: 3,
+        lazyConnect: true,
+        keepAlive: 5000,
+        family: 4,
+        retryStrategy: (times: number): number | null => {
+          if (times > 3) return null;
+          return Math.min(times * 100, 500);
+        },
+      });
+
+      client.on("connect", () => {
+        this.logger.info("✅ Redis connected successfully");
+      });
+
+      client.on("error", (err: Error) => {
+        this.logger.error("❌ Redis connection error", { error: err.message });
+      });
+
+      return client;
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error("Failed to setup Redis client", { error: errorMsg });
+      throw error;
     }
   }
-  
-  private validateNumber(value: string | undefined, defaultValue: number, min: number, max: number): number {
-    if (!value) return defaultValue;
-    
-    const num = parseInt(value);
-    if (isNaN(num) || num < min || num > max) {
-      this.logger.warn(`Invalid value ${value}, using default ${defaultValue}`);
-      return defaultValue;
-    }
-    
-    return num;
-  }
-  
-  async validateConnection(): Promise<boolean> {
+
+  public async validateConnection(): Promise<boolean> {
     try {
       const version = await this.connection.getVersion();
-      this.logger.info("Solana connection validated", { 
-        version,
-        endpoint: this.connection.rpcEndpoint
-      });
+      this.logger.info("Solana connection validated", { version: version["solana-core"] });
       return true;
-    } catch (error) {
-      this.logger.error("Solana connection failed", { 
-        error,
-        endpoint: this.connection.rpcEndpoint
-      });
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error("Failed to validate Solana connection", { error: errorMsg });
       return false;
     }
   }
-  
-  async validateRedis(): Promise<boolean> {
+
+  public async validateRedis(): Promise<boolean> {
     try {
-      await this.redis.connect();
       await this.redis.ping();
       this.logger.info("Redis connection validated");
       return true;
-    } catch (error) {
-      this.logger.error("Redis connection failed", { error });
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error("Failed to validate Redis connection", { error: errorMsg });
       return false;
     }
   }
+
+  public getAnchorProvider(): AnchorProvider {
+    // Simple wallet implementation that works with both Transaction types
+    const wallet = {
+      publicKey: this.keypair.publicKey,
+      signTransaction: async (tx: Transaction | VersionedTransaction) => {
+        if (tx instanceof Transaction) {
+          tx.partialSign(this.keypair);
+        } else {
+          // For VersionedTransaction, we need to sign differently
+          tx.sign([this.keypair]);
+        }
+        return tx;
+      },
+      signAllTransactions: async (txs: (Transaction | VersionedTransaction)[]) => {
+        txs.forEach(tx => {
+          if (tx instanceof Transaction) {
+            tx.partialSign(this.keypair);
+          } else {
+            tx.sign([this.keypair]);
+          }
+        });
+        return txs;
+      }
+    };
+
+    return new AnchorProvider(this.connection, wallet as any, {
+      commitment: "confirmed",
+      preflightCommitment: "confirmed"
+    });
+  }
+
+  public getRedis(): Redis {
+    return this.redis;
+  }
+
+  public getLogger(): winston.Logger {
+    return this.logger;
+  }
+
+  public validatePublicKey(key: string): PublicKey {
+    try {
+      return new PublicKey(key);
+    } catch (error: unknown) {
+      throw new Error(`Invalid public key: ${key}`);
+    }
+  }
+
+  public validateSlippage(slippageBps: number): void {
+    if (slippageBps < 0 || slippageBps > 1000) {
+      throw new Error(`Invalid slippage: ${slippageBps}. Must be between 0-1000 bps (0-10%)`);
+    }
+  }
+
+  public async cleanup(): Promise<void> {
+    try {
+      await this.redis.quit();
+      this.logger.info("Redis connection closed cleanly");
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error("Error during cleanup", { error: errorMsg });
+    }
+  }
+
+  public getMaxSlippageBps(): number {
+    return parseInt(process.env.MAX_SLIPPAGE_BPS || "1000");
+  }
+
+  public getDefaultTokenAmount(): number {
+    return parseFloat(process.env.DEFAULT_TOKEN_AMOUNT || "0.01");
+  }
+
+  public isProduction(): boolean {
+    return process.env.NODE_ENV === "production";
+  }
+
+  public isDryRun(): boolean {
+    return process.env.ENABLE_DRY_RUN === "true";
+  }
 }
+
+export const createBotConfig = (options: BotConfigOptions = {}): BotConfig => {
+  return new BotConfig(options);
+};
